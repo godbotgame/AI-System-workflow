@@ -1,65 +1,30 @@
 # Stage 4: 阶段执行
 
-**输入**：`todolist.csv`（任务列表）、`process.md`（项目上下文）  
-**输出**：完成的代码、更新的 `todolist.csv`（所有 status=done）  
+**输入**：`todolist.csv`、`process.md`、`tasks/*.md`（如有）  
+**输出**：完成的代码、更新的 `todolist.csv`、可审计的门禁证据
 
 ---
 
-## 执行模式
+## 执行原则（分级门禁）
 
-### 单 Agent 模式（简单阶段）
+### Gate Profile 与强度
 
-AI 按顺序执行 todolist.csv 中的任务：
+| gate_profile | 典型任务 | 必须满足 |
+|---|---|---|
+| `strict` | high 风险/核心链路 | TDD Red/Green、任务级评审、完整验证证据 |
+| `balanced` | 常规业务改动 | 至少 1 组失败→通过测试循环、阶段内批量评审、验证证据 |
+| `light` | 低风险/文档/样式 | 最小验证（lint/type-check/smoke 至少 1 项）+ 抽样评审 |
 
-```
-FOR each task in todolist.csv WHERE status = "todo":
-  1. 读取任务详情
-  2. 检查依赖任务是否 done
-  3. 执行任务
-  4. 自测（运行相关测试）
-  5. 更新 status = "done"，填写 actual_hours
-DONE
-```
+默认映射：`high -> strict`、`medium -> balanced`、`low -> light`。可在 `todolist.csv` 手动覆写 `gate_profile`。
 
-### 多 Agent 并行模式（复杂阶段）
+### 状态机（统一）
 
-对于任务量大、可并行的阶段，使用多个 AI 工具同时执行：
+`todo -> in-progress -> review -> done`
 
-```
-Agent A (Cursor): 负责前端任务 (module=frontend)
-Agent B (Codex):  负责后端 API (module=api)
-Agent C (Claude): 负责测试 (module=test)
-
-协调规则：
-- 每个 Agent 只认领 status=todo 的任务
-- 认领后立即更新为 status=in-progress
-- 完成后更新为 status=done
-- 有依赖的任务等依赖完成后再认领
-```
-
-#### ⚠️ 冲突避免策略
-
-多 Agent 并行时，`todolist.csv` 是文件，无法实现实时同步。推荐以下策略：
-
-| 策略 | 适用场景 | 说明 |
-|------|----------|------|
-| **按模块/目录划分** | 模块间耦合低 | 每个 Agent 只修改自己模块的文件，物理隔离 |
-| **Git 分支隔离** | 推荐方案 | 每个 Agent 在独立 feature 分支上工作，完成后 merge |
-| **顺序编排** | 最安全 | 放弃并行，人工逐一分配任务给不同 Agent |
-
-**推荐流程（Git 分支法）**：
-```bash
-# Agent A 的分支
-git checkout -b feature/frontend-phase-1
-
-# Agent B 的分支
-git checkout -b feature/api-phase-1
-
-# 各自完成后
-git checkout dev
-git merge feature/frontend-phase-1
-git merge feature/api-phase-1  # 解决冲突
-```
+规则：
+- `strict` 必须经过 `review` 才能 `done`
+- `balanced/light` 可以批量进入 `review`，统一放行后再 `done`
+- 任一门禁失败时，状态回退到 `in-progress`
 
 ---
 
@@ -67,103 +32,111 @@ git merge feature/api-phase-1  # 解决冲突
 
 ### Step 1: 任务认领
 
-```
-请查看 todolist.csv，找到所有 status=todo 且依赖已完成的任务。
-按优先级（high > medium > low）认领第一个任务，并将其状态更新为 in-progress。
-告诉我你认领了哪个任务。
-```
+1. 找到 `status=todo` 且依赖已完成的任务
+2. 读取 `priority + gate_profile`
+3. 更新 `status=in-progress`
+4. 在 `notes` 标记开始时间和执行人
 
-### Step 2: 任务实现
+### Step 2: 按 gate_profile 实施
 
-每个任务的执行流程：
+#### strict（high）
+1. 写 failing test（RED）并记录命令/输出摘要
+2. 实现最小代码使测试通过（GREEN）并记录证据
+3. 运行完整验证：`test + type-check + lint (+build)`
+4. 发起任务级 code review（critical/important 必须清零）
+5. 更新 `review_status=approved`、`verify_status=passed`
 
-1. **理解任务**：读取任务描述和技术方案（如有）
-2. **规划实现**：说明实现思路（1-3句话）
-3. **编写代码**：输出完整代码
-4. **添加测试**：输出单元测试（如果适用）
-5. **自检清单**：
-   - [ ] 代码是否符合项目规范？
-   - [ ] 是否处理了边界情况？
-   - [ ] 是否有明显的性能问题？
-   - [ ] 注释是否足够？
-   - [ ] 是否违反了 process.md 中的"禁止事项"？
+#### balanced（medium）
+1. 至少完成 1 组失败→通过测试循环
+2. 运行不少于 2 项验证（如 `test + type-check`）
+3. 进入阶段内批量评审队列
+4. 评审通过后更新 `review_status=approved`、`verify_status=passed`
 
-### Step 3: 任务完成
+#### light（low）
+1. 执行最小验证（lint/type-check/smoke 至少 1 项）
+2. 接受抽样评审
+3. 评审通过后更新状态
 
-```
-任务 [task-id] 完成。
-变更摘要：[简要说明做了什么]
-更新 todolist.csv: task [id] status = done, actual_hours = [N]
-下一个任务：[task-id]
+### Step 3: 进入 review
+
+将任务状态更新为 `review`，并填写：
+- `review_status`：`pending -> approved / changes-requested`
+- `verify_status`：`pending -> passed / failed`
+- `evidence`：命令+结果摘要（可写路径引用）
+
+### Step 4: 任务完成
+
+仅当以下条件满足，才能 `status=done`：
+- 对应 gate_profile 的门禁全部通过
+- `review_status=approved`
+- `verify_status=passed`
+- `evidence` 非空且可复核
+
+---
+
+## 推荐验证命令
+
+```bash
+# 测试（按项目调整）
+npm run test -- --testPathPattern=[模块名]
+
+# 类型检查
+npm run type-check
+
+# 规范检查
+npm run lint
+
+# 构建（strict 推荐）
+npm run build
 ```
 
 ---
 
 ## 错误处理
 
-当遇到问题时：
+若门禁失败，输出：
 
 ```markdown
-## 问题报告
+## 门禁失败报告
 
 **任务**：[task-id]
-**问题描述**：[遇到什么问题]
-**已尝试**：[尝试了什么解决方案]
-**需要协助**：[需要人工提供什么信息]
-
-在此任务解决前，切换到下一个无依赖的任务：[task-id]
+**gate_profile**：[strict/balanced/light]
+**失败环节**：[RED/GREEN/Review/Verify]
+**失败证据**：[命令 + 摘要]
+**修复计划**：[下一步动作]
 ```
 
----
-
-## 测试要求
-
-每个任务完成后，执行：
-
-```bash
-# 运行相关测试
-npm run test -- --testPathPattern=[模块名]
-
-# 类型检查
-npm run type-check
-
-# Lint 检查
-npm run lint
-```
-
-如果测试失败，**不要**更新 status=done，先修复再更新。
+失败时不得进入 `done`。
 
 ---
 
 ## 验收标准
 
-- [ ] todolist.csv 中所有 high 优先级任务状态为 done
-- [ ] 所有自动化测试通过
-- [ ] 类型检查无错误
-- [ ] Lint 无错误（或已知豁免）
-- [ ] 功能在开发环境可以正常运行
+- [ ] 所有任务符合 `todo -> in-progress -> review -> done`
+- [ ] strict 任务具备完整 TDD + 任务级评审 + 完整验证证据
+- [ ] balanced 任务完成最少测试循环 + 批量评审 + 验证
+- [ ] light 任务完成最小验证 + 抽样评审
+- [ ] `review_status` 与 `verify_status` 已正确填写
+- [ ] `evidence` 可复核
 
 ---
 
 ## 输出到 Stage 5
 
-将以下内容交给 Stage 5：
-- 更新后的 `todolist.csv`（全部 done，含 actual_hours）
-- 测试报告
-- 功能演示说明（如何验收）
+交付以下内容：
+- 更新后的 `todolist.csv`（含 `gate_profile/review_status/verify_status/evidence`）
+- 分级门禁执行证据
+- 功能演示与人工验收说明
 
 ---
 
 ## ❓ 常见问题 FAQ
 
-**Q1: 编码过程中发现架构设计有问题怎么办？**  
-A: 停止编码，在 process.md 中记录问题，通知人工决策。如果是小问题，在 notes 中记录后继续；如果是根本性问题，可能需要回到 Stage 1 修改架构。
+**Q1: balanced 必须像 strict 一样全量 TDD 吗？**  
+A: 不必须。至少 1 组失败→通过循环即可，但关键路径建议上调 strict。
 
-**Q2: 测试一直失败，是否可以跳过？**  
-A: 不可以。先在问题报告中记录失败原因，尝试修复。如果确认是已知问题且不影响核心功能，在 notes 中注明"已知问题：[描述]"，由人工决定是否放行。
+**Q2: light 能不能不评审？**  
+A: 不能。至少需要抽样评审。
 
-**Q3: 预估时间远超 actual_hours 怎么办？**  
-A: 正常记录即可。这些数据用于后续阶段的估时优化，不是考核工具。
-
-**Q4: 多个 Agent 修改了同一个文件导致冲突？**  
-A: 使用 Git 分支隔离策略。如果已经冲突，由人工裁决合并哪个版本，另一个 Agent 基于合并后的代码重做。
+**Q3: 验证命令失败但功能看起来可用，能 done 吗？**  
+A: 不能。`verify_status` 必须为 `passed`。

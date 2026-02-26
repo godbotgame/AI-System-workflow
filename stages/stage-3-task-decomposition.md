@@ -1,7 +1,7 @@
 # Stage 3: 任务分解
 
 **输入**：当前开发阶段的模块列表和验收标准  
-**输出**：`todolist.csv`（任务清单）、`process.md`（更新当前阶段上下文）  
+**输出**：`todolist.csv`（任务清单）、`process.md`（更新当前阶段上下文）、`tasks/*.md`（关键任务卡）
 
 ---
 
@@ -9,19 +9,29 @@
 
 ### Step 1: 分解到可执行任务
 
-将当前阶段的模块分解为具体的编码任务，每个任务：
-- 预计完成时间：1-4 小时
-- 有明确的完成标准
-- 可以独立执行（减少依赖）
+将当前阶段模块分解为具体编码任务，并按优先级控制粒度：
+- `high`：推荐 30-90 分钟，便于严格门禁和快速回滚
+- `medium` / `low`：保持 1-4 小时
 
 **任务粒度参考**：
 - ✅ 好："实现 POST /api/users 接口，支持用户注册，包含参数验证和错误处理"
 - ❌ 太大："实现用户系统"
 - ❌ 太小："在 user.ts 中添加一个变量"
 
-### Step 2: 技术方案简述（high 优先级任务）
+### Step 2: 任务分级与门禁映射
 
-对每个 **high** 优先级的任务，编写简要技术方案并交人工快速确认：
+为每个任务确定 `gate_profile`（支持覆写）：
+- 默认映射：`high -> strict`、`medium -> balanced`、`low -> light`
+- 特殊风险任务可手动上调（如 `medium -> strict`）
+
+门禁要求：
+- `strict`：TDD Red/Green + 任务级 code review + 完整验证证据
+- `balanced`：至少 1 组失败→通过测试循环 + 阶段内批量 review + 验证证据
+- `light`：最小验证（lint/type-check/smoke 至少 1 项）+ 抽样 review
+
+### Step 3: 技术方案简述（high 优先级任务）
+
+对每个 high 任务编写简要方案并交人工快速确认：
 
 ```markdown
 ## 任务 [id]：[任务名]
@@ -32,49 +42,32 @@
 **备选方案**：[如有其他可选方案]
 ```
 
-> ⚠️ 此环节仅需 1-2 分钟快速确认，目的是防止 AI 在 Stage 4 中走错方向。Medium/Low 优先级任务可跳过。
+> ⚠️ 该环节用于提前止损，避免 Stage 4 走错方向。
 
-### Step 3: 更新 todolist.csv
+### Step 4: 更新 todolist.csv
 
-将所有任务填入 `todolist.csv`：
+按新表头填充任务清单：
 
 ```csv
-id,phase,module,task,priority,status,assignee,estimated_hours,actual_hours,notes
-001,1,auth,实现用户注册 API (POST /api/users),high,todo,AI,3,,需要邮箱验证
-002,1,auth,实现用户登录 API (POST /api/auth/login),high,todo,AI,2,,JWT token
-003,1,auth,实现 JWT 中间件,high,todo,AI,2,,依赖 002
-004,1,db,创建数据库迁移脚本 - users 表,high,todo,AI,1,,
-005,1,auth,编写 auth 模块单元测试,medium,todo,AI,2,,依赖 001~003
+id,phase,module,task,priority,gate_profile,status,assignee,estimated_hours,actual_hours,review_status,verify_status,evidence,notes
+001,1,auth,实现用户注册 API (POST /api/users),high,strict,todo,AI,2,,,,,需要邮箱验证
+002,1,auth,实现用户登录 API (POST /api/auth/login),high,strict,todo,AI,2,,,,,JWT token；依赖 001
+003,1,auth,编写 auth 模块集成测试,medium,balanced,todo,AI,3,,,,,依赖 001~002
+004,1,docs,补充接口使用说明,low,light,todo,AI,1,,,,,依赖 002
 ```
 
 **状态说明**：
 - `todo`：待开始
 - `in-progress`：进行中
+- `review`：待评审（任务级或阶段级）
 - `done`：已完成
-- `blocked`：被阻塞（在 notes 中说明原因）
-- `review`：等待人工验收
+- `blocked`：被阻塞（在 notes 中说明）
 
-### Step 4: 更新 process.md
+### Step 5: 更新 process.md 与任务卡
 
-在 `process.md` 中记录本阶段上下文：
-
-```markdown
-## 当前阶段：[阶段 N] - [阶段名称]
-
-**开始时间**：YYYY-MM-DD
-**预计完成**：YYYY-MM-DD
-**状态**：进行中
-
-### 本阶段目标
-[从 stage-2 规划中复制]
-
-### 关键技术决策
-- [决策1]：[选择了什么，为什么]
-- [决策2]：[...]
-
-### 已知风险
-- [风险1]：[应对方案]
-```
+在 `process.md` 记录本阶段背景，并为高风险任务创建 `tasks/[id]-[task-name].md`：
+- high 任务：必须有任务卡，包含 strict 证据区块
+- medium/low：按需创建任务卡，至少保留证据链接或摘要
 
 ---
 
@@ -84,47 +77,47 @@ id,phase,module,task,priority,status,assignee,estimated_hours,actual_hours,notes
 当前阶段：阶段 [N] - [阶段名]
 涉及模块：[模块列表]
 
-请将以下模块分解为可独立执行的任务，填入 todolist.csv 格式：
-- 每个任务预计 1-4 小时完成
-- 标注任务间的依赖关系（在 notes 中写 "依赖 task-id"）
-- 优先级：high/medium/low
-- 预估时间：填写 estimated_hours
-- 技术栈：[当前项目技术栈]
+请将模块分解为可执行任务并写入 todolist.csv：
+- high 任务拆到 30-90 分钟；medium/low 为 1-4 小时
+- 先按 priority 生成 gate_profile（high->strict, medium->balanced, low->light）
+- 可手动覆写 gate_profile 并说明理由
+- 标注依赖关系（notes 中写 "依赖 task-id"）
+- 填写 estimated_hours
 
 模块详细需求：
-[从 stage-1 架构文档中复制相关内容]
+[从 stage-1 架构文档复制]
 ```
 
 ---
 
 ## 验收标准
 
-- [ ] todolist.csv 已更新，包含当前阶段所有任务
-- [ ] 所有任务粒度合理（非太大也非太小）
-- [ ] High 优先级任务已有简要技术方案
-- [ ] 依赖关系已在 notes 中标注
-- [ ] process.md 已更新当前阶段信息
-- [ ] 人工确认任务列表合理
+- [ ] `todolist.csv` 已更新并包含 `gate_profile/review_status/verify_status/evidence`
+- [ ] high 任务粒度为 30-90 分钟，medium/low 粒度合理
+- [ ] high 任务已有简要技术方案并经人工确认
+- [ ] 依赖关系已在 notes 标注
+- [ ] `process.md` 已更新当前阶段信息
+- [ ] 高风险任务已创建 `tasks/*.md`
 
 ---
 
 ## 输出到 Stage 4
 
-将以下内容交给 Stage 4 执行 AI：
+将以下内容交给 Stage 4：
 - 更新后的 `todolist.csv`
 - 更新后的 `process.md`
-- High 优先级任务的技术方案（已确认）
-- 当前阶段的架构文档（来自 Stage 1）
+- high 任务技术方案与 `tasks/*.md`
+- 当前阶段架构文档（来自 Stage 1）
 
 ---
 
 ## ❓ 常见问题 FAQ
 
-**Q1: 任务分解到什么粒度最合适？**  
-A: 每个任务 1-4 小时可完成。如果一个任务需要拿不准的技术决策，就需要进一步拆分。
+**Q1: medium 任务可以设为 strict 吗？**  
+A: 可以。涉及核心链路、数据安全、支付等场景应手动上调。
 
-**Q2: 发现需求不明确怎么办？**  
-A: 立即暂停分解，将问题记录在 process.md 的"遇到的问题"部分，等待人工澄清后再继续。
+**Q2: 任务太多会不会拖慢？**  
+A: 只对 high 任务强制细粒度和全门禁，medium/low 保持效率优先。
 
-**Q3: 技术方案被否决了怎么办？**  
-A: 根据反馈修改方案，重新提交确认。如果只是实现细节的调整，可以在 notes 中记录然后继续。
+**Q3: 需求不明确怎么办？**  
+A: 先暂停分解，把问题写入 `process.md` 的"遇到的问题"，待人工澄清。

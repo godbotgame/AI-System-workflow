@@ -4,42 +4,37 @@
 
 set -e
 
-# 颜色定义
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 PROJECT_NAME="${1:-my-project}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo -e "${BLUE}🚀 AI Dev Workflow 项目初始化${NC}"
-echo "=================================="
-echo -e "项目名称: ${GREEN}${PROJECT_NAME}${NC}"
-echo -e "工作流目录: ${SCRIPT_DIR}"
-echo ""
+printf "${BLUE}🚀 AI Dev Workflow 项目初始化${NC}\n"
+printf "==================================\n"
+printf "项目名称: ${GREEN}%s${NC}\n" "${PROJECT_NAME}"
+printf "工作流目录: %s\n\n" "${SCRIPT_DIR}"
 
-# 1. 复制模板文件到当前目录
-echo -e "${YELLOW}[1/5]${NC} 复制 process.md 模板..."
+printf "${YELLOW}[1/7]${NC} 复制 process.md 模板...\n"
 if [ -f "./process.md" ]; then
   echo "  ⚠️  process.md 已存在，跳过"
 else
   cp "${SCRIPT_DIR}/templates/process.md" ./process.md
-  # 替换项目名
   sed -i.bak "s/\[项目名\]/${PROJECT_NAME}/g" ./process.md && rm -f ./process.md.bak
   echo "  ✅ process.md 已创建"
 fi
 
-echo -e "${YELLOW}[2/5]${NC} 复制 todolist.csv 模板..."
+printf "${YELLOW}[2/7]${NC} 复制 todolist.csv 模板...\n"
 if [ -f "./todolist.csv" ]; then
   echo "  ⚠️  todolist.csv 已存在，跳过"
 else
-  # 只复制表头，不复制示例数据
   head -1 "${SCRIPT_DIR}/templates/todolist.csv" > ./todolist.csv
-  echo "  ✅ todolist.csv 已创建（仅表头）"
+  echo "  ✅ todolist.csv 已创建（仅表头，含 gate_profile/review_status/verify_status/evidence）"
 fi
 
-echo -e "${YELLOW}[3/5]${NC} 复制 changelog.md 模板..."
+printf "${YELLOW}[3/7]${NC} 复制 changelog.md 模板...\n"
 if [ -f "./CHANGELOG.md" ]; then
   echo "  ⚠️  CHANGELOG.md 已存在，跳过"
 else
@@ -48,58 +43,73 @@ else
   echo "  ✅ CHANGELOG.md 已创建"
 fi
 
-# 2. 创建任务目录
-echo -e "${YELLOW}[4/5]${NC} 创建 tasks/ 目录..."
+printf "${YELLOW}[4/7]${NC} 创建 tasks/ 目录...\n"
 mkdir -p ./tasks
 echo "  ✅ tasks/ 目录已创建"
 
-# 3. 生成 .cursorrules
-echo -e "${YELLOW}[5/5]${NC} 生成 AI 工具配置文件..."
-
+printf "${YELLOW}[5/7]${NC} 生成 .cursorrules...\n"
 if [ ! -f "./.cursorrules" ]; then
 cat > ./.cursorrules << 'CURSOR_EOF'
 你正在参与一个使用 AI Dev Workflow 的项目。
 
-工作流文档：ai-dev-workflow/
-项目上下文：process.md
-任务列表：todolist.csv
-变更日志：CHANGELOG.md
+核心文件：
+- process.md
+- todolist.csv
+- ai-dev-workflow/stages/
 
-执行代码时：
-1. 先读取 process.md 了解项目背景和当前阶段
-2. 读取当前阶段的 stage 文件确认任务要求
-3. 检查 todolist.csv 了解任务状态
-4. 完成后更新 todolist.csv 状态为 done
-5. 重要决策记录到 process.md
-
-禁止事项：
-- 不要跨阶段执行任务
-- 遇到不确定的决策，先列出方案让人工选择
-- 不要省略代码（用 ... 代替）
+执行规则：
+1. 每次任务前先读取 process.md 和 todolist.csv
+2. 先判断 priority 与 gate_profile，再开始编码
+3. 任务状态必须按 todo -> in-progress -> review -> done 流转
+4. 未满足 review_status=approved 和 verify_status=passed 时，不得 done
+5. 所有完成声明必须附 evidence（命令 + 结果摘要）
 CURSOR_EOF
   echo "  ✅ .cursorrules 已创建"
 else
   echo "  ⚠️  .cursorrules 已存在，跳过"
 fi
 
-# 生成 GitHub Copilot 指令（如果不存在）
+printf "${YELLOW}[6/7]${NC} 生成 AGENTS.md...\n"
+if [ ! -f "./AGENTS.md" ]; then
+cat > ./AGENTS.md << 'AGENTS_EOF'
+# AGENTS.md
+
+你是 AI Dev Workflow 执行代理。
+
+## 必读文件
+- process.md
+- todolist.csv
+- ai-dev-workflow/stages/
+
+## 执行规范
+1. 先判断 priority 与 gate_profile
+2. 按门禁执行，再更新状态
+3. 状态流固定：todo -> in-progress -> review -> done
+4. review_status=approved 且 verify_status=passed 才可 done
+5. 所有“已完成/已通过”结论必须附 evidence
+
+## Gate Profile
+- strict: TDD Red/Green + 任务级 code review + 完整验证
+- balanced: 至少 1 组失败->通过测试循环 + 批量 review + 验证
+- light: 最小验证（lint/type-check/smoke >=1）+ 抽样 review
+AGENTS_EOF
+  echo "  ✅ AGENTS.md 已创建"
+else
+  echo "  ⚠️  AGENTS.md 已存在，跳过"
+fi
+
+printf "${YELLOW}[7/7]${NC} 生成 .github/copilot-instructions.md...\n"
 if [ ! -f "./.github/copilot-instructions.md" ]; then
   mkdir -p ./.github
 cat > ./.github/copilot-instructions.md << 'COPILOT_EOF'
 # Copilot Instructions
 
-This project uses **AI Dev Workflow** for structured development.
+This project uses AI Dev Workflow with risk-based gates.
 
-## Key Files
-- `process.md` - Project context and current stage
-- `todolist.csv` - Task list with status tracking
-- `ai-dev-workflow/` - Workflow documentation
-
-## Rules
-- Follow the current stage instructions
-- Update todolist.csv after completing each task
-- Record important decisions in process.md
-- Provide complete code, never use ellipsis
+- Determine gate_profile before implementation.
+- Follow status flow: todo -> in-progress -> review -> done.
+- Do not mark done before review_status=approved and verify_status=passed.
+- Always include evidence (commands + output summary).
 COPILOT_EOF
   echo "  ✅ .github/copilot-instructions.md 已创建"
 else
@@ -107,10 +117,10 @@ else
 fi
 
 echo ""
-echo "=================================="
-echo -e "${GREEN}✅ 初始化完成！${NC}"
-echo ""
+printf "==================================\n"
+printf "${GREEN}✅ 初始化完成！${NC}\n\n"
 echo "下一步："
-echo "  1. 编辑 process.md 填写项目详细信息"
-echo "  2. 打开 ai-dev-workflow/stages/stage-0-project-init.md 开始 Stage 0"
-echo "  3. 选择你的 AI 工具，参考 ai-dev-workflow/agent-routing.md"
+echo "  1. 编辑 process.md 填写项目信息"
+echo "  2. 打开 ai-dev-workflow/stages/stage-0-project-init.md"
+echo "  3. 在 todolist.csv 为任务设置 priority 与 gate_profile"
+echo "  4. high 任务优先创建 tasks/[id]-[task-name].md"

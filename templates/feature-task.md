@@ -12,8 +12,11 @@
 | 阶段 | Phase [N] |
 | 模块 | [module 名称] |
 | 优先级 | high / medium / low |
-| 状态 | todo → in-progress → done |
+| Gate Profile | strict / balanced / light |
+| 状态 | todo → in-progress → review → done |
 | 负责工具 | AI (Cursor / Codex / Claude) |
+
+> 默认映射：`high -> strict`、`medium -> balanced`、`low -> light`。特殊任务可手动覆写 `gate_profile`。
 
 ---
 
@@ -29,8 +32,8 @@
 
 - [ ] [可测试的标准1]
 - [ ] [可测试的标准2]
-- [ ] 相关单元测试通过
-- [ ] 无 TypeScript 错误
+- [ ] 已完成对应 gate_profile 的门禁要求
+- [ ] 相关自动化验证通过
 
 ---
 
@@ -42,7 +45,6 @@
 
 ### 接口签名（如适用）
 ```typescript
-// 函数/API 接口定义
 interface [InterfaceName] {
   [field]: [type]
 }
@@ -56,9 +58,26 @@ function [functionName](params: [ParamsType]): [ReturnType]
 
 ---
 
-## 实现笔记
+## 分级证据区块（必填）
 
-> AI 在实现过程中填写此部分
+### strict（high）
+- RED 证据（失败测试命令 + 失败摘要）：
+- GREEN 证据（通过测试命令 + 通过摘要）：
+- 任务级代码评审结论（critical/important=0）：
+- 完整验证证据（test/type-check/lint/build）：
+
+### balanced（medium）
+- 至少 1 组失败→通过测试循环证据：
+- 阶段内批量评审结论：
+- 验证证据（至少 2 项，如 test + type-check）：
+
+### light（low）
+- 最小验证证据（lint / type-check / smoke 至少 1 项）：
+- 抽样评审记录：
+
+---
+
+## 实现笔记
 
 ### 实现思路
 [简述实现方案]
@@ -77,5 +96,7 @@ function [functionName](params: [ParamsType]): [ReturnType]
 |------|------|
 | 完成时间 | YYYY-MM-DD HH:mm |
 | 执行工具 | [AI 工具名] |
-| 测试结果 | [通过/失败] |
+| gate_profile | [strict/balanced/light] |
+| review_status | [approved/changes-requested] |
+| verify_status | [passed/failed] |
 | 代码文件 | [变更的主要文件] |
