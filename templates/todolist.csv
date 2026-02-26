@@ -1,0 +1,8 @@
+id,phase,module,task,priority,status,assignee,estimated_hours,actual_hours,notes
+001,1,example,这是一个示例任务：实现用户注册 API (POST /api/users),high,todo,AI,3,,包含邮箱格式验证和密码强度校验
+002,1,example,实现用户登录 API (POST /api/auth/login),high,todo,AI,2,,返回 JWT token；依赖 001
+003,1,example,实现 JWT 鉴权中间件,high,todo,AI,2,,依赖 002；所有需要鉴权的接口使用此中间件
+004,1,example,创建数据库迁移脚本 - users 表,high,todo,AI,1,,字段：id/username/email/password_hash/created_at
+005,1,example,编写 auth 模块单元测试,medium,todo,AI,2,,覆盖注册、登录、Token 校验三个场景；依赖 001~003
+006,2,example,实现用户个人信息查询 API (GET /api/me),medium,todo,AI,1,,需要鉴权；依赖 003
+007,2,example,实现用户信息更新 API (PATCH /api/me),medium,todo,AI,2,,支持修改用户名和头像；依赖 006
